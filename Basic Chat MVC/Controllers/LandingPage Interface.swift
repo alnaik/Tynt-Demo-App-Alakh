@@ -7,7 +7,133 @@
 
 import SwiftUI
 
-// Define your data model
+struct LandingPageView: View {
+    @State private var selectedRoomIndex: Int? = 0
+    @State private var showingAddRoomView = false
+    @ObservedObject var roomsData = RoomsData()
+    @State private var showingEditRoomView = false
+    @State private var editingRoomIndex: Int?
+    @State private var showingPairingSheet = false
+    @ObservedObject private var bluetoothManager = BluetoothManager()
+
+    var body: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Image("Logo_Full")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 50)
+            }
+            .padding(.top)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack {
+                    ForEach(roomsData.rooms.indices, id: \.self) { index in
+                        Button(action: {
+                            selectedRoomIndex = index
+                        }) {
+                            Text(roomsData.rooms[index].name)
+                                .padding()
+                                .background(selectedRoomIndex == index ? Color("Color_Transparent") : Color.white)
+                                .foregroundColor(.black)
+                                .cornerRadius(10)
+                                .font(.system(size: 25, weight: .semibold))
+                        }
+                        .contextMenu {
+                            Button("Edit") {
+                                editingRoomIndex = index
+                                showingEditRoomView = true
+                            }
+                            Button("Delete", role: .destructive) {
+                                roomsData.deleteRoom(at: index)
+                            }
+                        }
+                        .sheet(isPresented: $showingEditRoomView) {
+                            if let editingIndex = editingRoomIndex {
+                                AddRoomView(rooms: $roomsData.rooms, roomName: roomsData.rooms[editingIndex].name, roomIndex: editingIndex)
+                            }
+                        }
+                    }
+                    Button("add room") {
+                        showingAddRoomView = true
+                    }
+                    .padding()
+                    .background(Color("Color"))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .font(.system(size: 25, weight: .semibold))
+                    .sheet(isPresented: $showingAddRoomView) {
+                        AddRoomView(rooms: $roomsData.rooms)
+                    }
+                }
+                .padding(.horizontal)
+            }
+
+            VStack {
+                
+                if roomsData.rooms.isEmpty {
+                    
+                    Button(action: {
+                                            showingPairingSheet = bluetoothManager.isBluetoothEnabled
+                                        }) {
+                                            WindowButtonView()
+                                            Spacer()
+                                        }
+                                        .disabled(true) // Disabled because there are no rooms
+                                        .padding()
+                                        .cornerRadius(10)
+                                        .background(Color.white)
+                                        .foregroundColor(.white)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            if let selectedIndex = selectedRoomIndex, roomsData.rooms.indices.contains(selectedIndex) {
+                                ForEach(roomsData.rooms[selectedIndex].windows, id: \.self) { window in
+                                    WindowView(windowName: window)
+                                }
+                                Button(action: {
+                                    showingPairingSheet = bluetoothManager.isBluetoothEnabled
+                                }) {
+                                    WindowButtonView()
+                                }
+                                .disabled(!bluetoothManager.isBluetoothEnabled)
+                                .disabled(roomsData.rooms.isEmpty || selectedRoomIndex == nil)
+                                .padding(.horizontal, 2)
+                                .padding(.bottom, 25)
+                                .background(Color.white)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                                .sheet(isPresented: $showingPairingSheet) {
+                                    if let selectedIndex = selectedRoomIndex {
+                                        PairingInterfaceView(selectedRoom: $roomsData.rooms[selectedIndex],
+                                                             roomsData: roomsData, // Pass the observed object
+                                                             bluetoothManager: bluetoothManager) { selectedDevice, newName in
+                                            let windowName = newName.isEmpty ? (selectedDevice.name ?? "Unknown") : newName
+                                            roomsData.rooms[selectedIndex].windows.append(windowName)
+                                            showingPairingSheet = false
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text("Select a room to see its windows")
+                                    .padding()
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+            }
+            .transition(.slide)
+            Spacer()
+        }
+        .onAppear {
+            if !roomsData.rooms.isEmpty && (selectedRoomIndex == nil || selectedRoomIndex! >= roomsData.rooms.count) {
+                            selectedRoomIndex = 0
+                        }
+                }
+    }
+}
 struct Room : Codable {
     var name: String
     var windows: [String]
@@ -92,6 +218,22 @@ struct AddRoomView: View {
     }
 }
 
+struct WindowView: View {
+    var windowName: String
+    var body: some View {
+        VStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.blue.opacity(0.3))
+                .frame(width: 200, height: 400)
+            Text(windowName)
+        }
+        .frame(width: 200, height: 450)
+        .onTapGesture {
+            // Navigate to HomeInterfaceView
+        }
+    }
+}
+
 struct WindowButtonView: View {
     var body: some View {
         // Window shape with plus sign
@@ -106,134 +248,10 @@ struct WindowButtonView: View {
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.gray)
         }
+        .frame(width: 200, height: 450)
     }
 }
 
-
-struct LandingPageView: View {
-    @State private var selectedRoomIndex: Int? = 0
-    @State private var showingAddRoomView = false
-    @ObservedObject var roomsData = RoomsData()
-    @State private var showingEditRoomView = false
-    @State private var editingRoomIndex: Int?
-    @State private var showingPairingSheet = false
-    @ObservedObject private var bluetoothManager = BluetoothManager()
-
-    var body: some View {
-        VStack {
-            HStack {
-                Spacer()
-                Image("Logo_Full")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(height: 50)
-            }
-            .padding(.top)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    ForEach(roomsData.rooms.indices, id: \.self) { index in
-                        Button(action: {
-                            selectedRoomIndex = index
-                        }) {
-                            Text(roomsData.rooms[index].name)
-                                .padding()
-                                .background(selectedRoomIndex == index ? Color("Color_Transparent") : Color.white)
-                                .foregroundColor(.black)
-                                .cornerRadius(10)
-                                .font(.system(size: 25, weight: .semibold))
-                        }
-                        .contextMenu {
-                            Button("Edit") {
-                                editingRoomIndex = index
-                                showingEditRoomView = true
-                            }
-                            Button("Delete", role: .destructive) {
-                                roomsData.deleteRoom(at: index)
-                            }
-                        }
-                        .sheet(isPresented: $showingEditRoomView) {
-                            if let editingIndex = editingRoomIndex {
-                                AddRoomView(rooms: $roomsData.rooms, roomName: roomsData.rooms[editingIndex].name, roomIndex: editingIndex)
-                            }
-                        }
-                    }
-                    Button("add room") {
-                        showingAddRoomView = true
-                    }
-                    .padding()
-                    .background(Color("Color"))
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                    .font(.system(size: 25, weight: .semibold))
-                    .sheet(isPresented: $showingAddRoomView) {
-                        AddRoomView(rooms: $roomsData.rooms)
-                    }
-                }
-                .padding(.horizontal)
-            }
-
-            VStack {
-                
-                if roomsData.rooms.isEmpty {
-                    // Provide a UI element to indicate that no rooms are available
-                    Button(action: {
-                                            showingPairingSheet = bluetoothManager.isBluetoothEnabled
-                                        }) {
-                                            WindowButtonView()
-                                            Spacer()
-                                        }
-                                        .disabled(true) // Disabled because there are no rooms
-                                        .padding()
-                                        .cornerRadius(10)
-                                        .background(Color.white)
-                                        .foregroundColor(.white)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            if let selectedIndex = selectedRoomIndex, roomsData.rooms.indices.contains(selectedIndex) {
-                                ForEach(roomsData.rooms[selectedIndex].windows, id: \.self) { window in
-                                    Text(window)
-                                }
-                                Button(action: {
-                                    showingPairingSheet = bluetoothManager.isBluetoothEnabled
-                                }) {
-                                    WindowButtonView()
-                                }
-                                .disabled(!bluetoothManager.isBluetoothEnabled)
-                                .disabled(roomsData.rooms.isEmpty || selectedRoomIndex == nil)
-                                .padding(.horizontal, 2)
-                                .padding(.vertical, 20)
-                                .background(Color.white)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                                .sheet(isPresented: $showingPairingSheet) {
-                                    PairingInterfaceView(selectedRoom: $roomsData.rooms[selectedIndex], bluetoothManager: BluetoothManager()) { selectedDevice, newName in
-                                        if let selectedIndex = selectedRoomIndex {
-                                            let windowName = newName.isEmpty ? (selectedDevice.name ?? "Unknown") : newName
-                                            roomsData.rooms[selectedIndex].windows.append(windowName)
-                                        }
-                                    }
-                                }
-                            } else {
-                                Text("Select a room to see its windows")
-                                    .padding()
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                }
-            }
-            .transition(.slide)
-            Spacer()
-        }
-        .onAppear {
-            if !roomsData.rooms.isEmpty && (selectedRoomIndex == nil || selectedRoomIndex! >= roomsData.rooms.count) {
-                            selectedRoomIndex = 0
-                        }
-                }
-    }
-}
 
 //Preview provider for SwiftUI canvas
 struct LandingPageView_Previews: PreviewProvider {

@@ -47,7 +47,6 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         centralManager.scanForPeripherals(withServices: nil, options: nil) // Scan for all devices
         print("Scanning started")
         
-        // Add a timeout similar to the React Native app if needed
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
             self?.centralManager.stopScan()
             print("Scanning stopped")
@@ -67,7 +66,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-            // Check if the device name includes 'tynt' (assuming case sensitivity is not an issue)
+            // Check if the device name includes 'tynt'
             if let name = peripheral.name?.lowercased(), name.contains("tynt") {
                 print("Discovered Tynt device: \(peripheral.name ?? "Unknown") with RSSI \(RSSI.intValue)")
                 if !discoveredDevices.contains(where: { $0.peripheral.identifier == peripheral.identifier }) {
@@ -98,6 +97,11 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        if let error = error {
+            print("Error discovering services: \(error.localizedDescription)")
+            return
+        }
+        
         guard let services = peripheral.services else { return }
         for service in services {
             peripheral.discoverCharacteristics(nil, for: service)
@@ -112,7 +116,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                     SOTChar = characteristic
                 case CBUUIDs.cService_Characteristic_uuid_DriveState:
                     DrvStChar = characteristic
-                // Add cases for other characteristics
+                // cases for other characteristics
                 default: break
             }
 
@@ -126,31 +130,40 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard error == nil else {
-            // Handle the error
+        if let error = error {
+            print("Error updating value for characteristic: \(error.localizedDescription)")
             return
         }
-        // Handle characteristic value updates
+        
+        // Handle the characteristic value update
+        
     }
 
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
-        // Update your logic to handle RSSI readings
+        if let error = error {
+            print("Error reading RSSI: \(error.localizedDescription)")
+            return
+        }
+        
+        // Handle the RSSI value
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard error == nil else {
-            // Handle the error
+        if let error = error {
+            print("Error writing value to characteristic: \(error.localizedDescription)")
             return
         }
-        // Handle successful write operations
+        
+        // Handle the confirmation of write
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        guard error == nil else {
-            // Handle the error
+        if let error = error {
+            print("Error updating notification state for characteristic: \(error.localizedDescription)")
             return
         }
-        // Handle notification state updates
+        
+        // Handle the notification state update
     }
 }
 

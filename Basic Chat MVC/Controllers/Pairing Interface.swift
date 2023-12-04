@@ -5,57 +5,64 @@ import CoreBluetooth
 
 struct PairingInterfaceView: View {
     @Binding var selectedRoom: Room
+    @ObservedObject var roomsData: RoomsData
     @ObservedObject var bluetoothManager: BluetoothManager
     var onDeviceSelected: (CBPeripheral, String) -> Void
     @State private var isScanning = false
     @State private var selectedDevice: CBPeripheral?
     @State private var newDeviceName: String = ""
-    @State private var isDeviceSelected: Bool = false
     @State private var showingRenameView = false
-
+    @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
-        List(bluetoothManager.discoveredDevices, id: \.peripheral.identifier) { device in
-            Button(action: {
-                selectedDevice = device.peripheral
-                showingRenameView = true
-            }) {
-                BluetoothDeviceRow(deviceName: device.peripheral.name ?? "Unknown", rssi: device.rssi)
+        NavigationView {
+            List(bluetoothManager.discoveredDevices.filter { !isDeviceAdded($0.peripheral) }, id: \.peripheral.identifier) { device in
+                       Button(action: {
+                           selectedDevice = device.peripheral // device.peripheral is a CBPeripheral
+                           showingRenameView = true
+                       }) {
+                           BluetoothDeviceRow(deviceName: device.peripheral.name ?? "Unknown", rssi: device.rssi)
+                       }
+                   }
             }
-        }
-        .sheet(isPresented: $showingRenameView) {
-            RenameDeviceView(device: $selectedDevice, newName: $newDeviceName, onSave: { device, name in
-                onDeviceSelected(device, name)
-                showingRenameView = false
-            })
-        }
-        .navigationBarTitle("Add Window", displayMode: .inline)
-        .navigationBarItems(trailing: Button("Done") {
-            // Action to close the view or handle completion
-        })
-        
-        if isScanning {
-                    ProgressView("Scanning...")
+            .sheet(isPresented: $showingRenameView) {
+                RenameDeviceView(device: $selectedDevice, newName: $newDeviceName, onSave: { device, name in
+                    onDeviceSelected(device, name)
+                    showingRenameView = false
+                })
+            }
+            .navigationBarTitle("Add Window", displayMode: .inline)
+            .navigationBarItems(trailing: Button("Done") {
+                if let device = selectedDevice {
+                    onDeviceSelected(device, newDeviceName)
+                    newDeviceName = ""
+                    // Dismiss the sheet
+                    presentationMode.wrappedValue.dismiss()
                 }
+            })
 
-        Button(isScanning ? "Stop Scanning" : "Scan for Devices") {
-            isScanning.toggle()
             if isScanning {
-                bluetoothManager.startScanning()
-            } else {
-                bluetoothManager.stopScanning()
+                ProgressView("Scanning...")
             }
+
+            Button(isScanning ? "Stop Scanning" : "Scan for Devices") {
+                isScanning.toggle()
+                if isScanning {
+                    bluetoothManager.startScanning()
+                } else {
+                    bluetoothManager.stopScanning()
+                }
+            }
+            .foregroundColor(.black)
+            .font(.system(size: 25, weight: .semibold))
+            .padding()
         }
-        .foregroundColor(.black)
-        .font(.system(size: 25, weight: .semibold))
-        .padding()
+    private func isDeviceAdded(_ device: CBPeripheral) -> Bool {
+        let deviceName = device.name ?? "Unknown"
+        return roomsData.rooms.contains { room in
+            room.windows.contains(deviceName)
+        }
     }
-    private func saveDevice() {
-            if let device = selectedDevice {
-                onDeviceSelected(device, newDeviceName)
-                newDeviceName = ""
-            }
-        }
 }
 
 struct BluetoothDeviceRow: View {
