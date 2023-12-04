@@ -15,6 +15,8 @@ class BlePeripheral {
     static var SOTChar: CBCharacteristic?
     static var DrvStChar: CBCharacteristic?
     static var autoTintChar: CBCharacteristic?
+    static var motorOpenChar: CBCharacteristic?
+    static var goalMotorChar: CBCharacteristic?
     static var tempChar: CBCharacteristic?
     static var humidityChar: CBCharacteristic?
     static var ambLightChar: CBCharacteristic?

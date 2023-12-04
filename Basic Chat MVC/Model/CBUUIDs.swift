@@ -17,12 +17,18 @@ struct CBUUIDs{
     static let cService_Characteristic_uuid_Goal_Perc = "00001525-1212-EFDE-1523-785FEABCD123" //Goal Percent Char
     static let cService_Characteristic_uuid_Drv_State = "00001526-1212-EFDE-1523-785FEABCD123" //Drive State Char
     static let cService_Characteristic_uuid_Auto_Mode = "00001527-1212-EFDE-1523-785FEABCD123" //Auto Mode Char
+    static let cService_Characteristic_uuid_MO_Perc = "00001528-1212-EFDE-1523-785FEABCD123" //Motor Open Percent Char
+    static let cService_Characteristic_uuid_GMO_Perc = "00001529-1212-EFDE-1523-785FEABCD123" //Goal Motor Open Percent Char
 
     static let cService_UUID = CBUUID(string: controlService_UUID)
     static let cService_Characteristic_uuid_StateOfTint = CBUUID(string: cService_Characteristic_uuid_SOT_Perc) // (Property = Read/Notify)
     static let cService_Characteristic_uuid_GoalTint = CBUUID(string: cService_Characteristic_uuid_Goal_Perc) //(Property = Write without response)
     static let cService_Characteristic_uuid_DriveState = CBUUID(string: cService_Characteristic_uuid_Drv_State) // (Property = Read/Notify)
     static let cService_Characteristic_uuid_AutoMode = CBUUID(string: cService_Characteristic_uuid_Auto_Mode) //(Property = Write without response)
+    static let cService_Characteristic_uuid_MotorOpen = CBUUID(string:
+        cService_Characteristic_uuid_MO_Perc) //(Property = Read/Notify)
+    static let cService_Characteristic_uuid_GoalMotorOpen = CBUUID(string:
+        cService_Characteristic_uuid_GMO_Perc) //(Property = Write without response)
     
     //Tynt Sensor Service
     static let sensorService_UUID = "00001623-1212-EFDE-1523-785FEABCD123"
