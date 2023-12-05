@@ -7,7 +7,7 @@ struct PairingInterfaceView: View {
     @Binding var selectedRoom: Room
     @ObservedObject var roomsData: RoomsData
     @ObservedObject var bluetoothManager: BluetoothManager
-    var onDeviceSelected: (CBPeripheral, String) -> Void
+    var onDeviceSelected: (CBPeripheral, String, Bool) -> Void
     @State private var isScanning = false
     @State private var selectedDevice: CBPeripheral?
     @State private var newDeviceName: String = ""
@@ -27,14 +27,14 @@ struct PairingInterfaceView: View {
             }
             .sheet(isPresented: $showingRenameView) {
                 RenameDeviceView(device: $selectedDevice, newName: $newDeviceName, onSave: { device, name in
-                    onDeviceSelected(device, name)
+                    onDeviceSelected(device, name, true)
                     showingRenameView = false
                 })
             }
             .navigationBarTitle("Add Window", displayMode: .inline)
             .navigationBarItems(trailing: Button("Done") {
                 if let device = selectedDevice {
-                    onDeviceSelected(device, newDeviceName)
+                    onDeviceSelected(device, newDeviceName, true)
                     newDeviceName = ""
                     // Dismiss the sheet
                     presentationMode.wrappedValue.dismiss()
@@ -53,9 +53,11 @@ struct PairingInterfaceView: View {
                     bluetoothManager.stopScanning()
                 }
             }
-            .foregroundColor(.black)
-            .font(.system(size: 25, weight: .semibold))
             .padding()
+            .background(Color("Color"))
+            .foregroundColor(.white)
+            .cornerRadius(10)
+            .font(.system(size: 25, weight: .semibold))
         }
     private func isDeviceAdded(_ device: CBPeripheral) -> Bool {
         let deviceName = device.name ?? "Unknown"
@@ -486,7 +488,7 @@ struct RenameDeviceView: View {
 //        else if characteristic.uuid.isEqual(CBUUIDs.cService_Characteristic_uuid_GoalTint){
 //            goalTintChar = characteristic
 //            BlePeripheral.goalTintChar = goalTintChar
-//            //MARK: - reinclude when figured out GT Char parse needs
+//            ////MARK: - reinclude when figured out GT Char parse needs
 ////            peripheral.setNotifyValue(true, for: goalTintChar!)
 ////            peripheral.readValue(for: characteristic)
 //            print("Goal Tint Characteristic: \(goalTintChar.uuid)")

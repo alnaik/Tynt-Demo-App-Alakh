@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreBluetooth
 
 struct LandingPageView: View {
     @State private var selectedRoomIndex: Int? = 0
@@ -14,7 +15,11 @@ struct LandingPageView: View {
     @State private var showingEditRoomView = false
     @State private var editingRoomIndex: Int?
     @State private var showingPairingSheet = false
-    @ObservedObject private var bluetoothManager = BluetoothManager()
+    @StateObject private var bluetoothManager = BluetoothManager()
+    
+    func removeDeviceFromDiscoveredList(_ device: CBPeripheral) {
+            bluetoothManager.discoveredDevices.removeAll { $0.peripheral.identifier == device.identifier }
+        }
 
     var body: some View {
         VStack {
@@ -107,11 +112,14 @@ struct LandingPageView: View {
                                 .sheet(isPresented: $showingPairingSheet) {
                                     if let selectedIndex = selectedRoomIndex {
                                         PairingInterfaceView(selectedRoom: $roomsData.rooms[selectedIndex],
-                                                             roomsData: roomsData, // Pass the observed object
-                                                             bluetoothManager: bluetoothManager) { selectedDevice, newName in
+                                                             roomsData: roomsData,
+                                                             bluetoothManager: bluetoothManager) { selectedDevice, newName, shouldRemove in
                                             let windowName = newName.isEmpty ? (selectedDevice.name ?? "Unknown") : newName
                                             roomsData.rooms[selectedIndex].windows.append(windowName)
                                             showingPairingSheet = false
+                                            if shouldRemove {
+                                                removeDeviceFromDiscoveredList(selectedDevice)
+                                            }
                                         }
                                     }
                                 }
@@ -230,6 +238,7 @@ struct WindowView: View {
         .frame(width: 200, height: 450)
         .onTapGesture {
             // Navigate to HomeInterfaceView
+            
         }
     }
 }
