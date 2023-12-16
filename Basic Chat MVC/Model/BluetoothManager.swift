@@ -7,14 +7,34 @@
 
 import Foundation
 import CoreBluetooth
+import Combine
+
+extension Data {
+    func hexEncodedString() -> String {
+        return map { String(format: "%02hhx", $0) }.joined()
+    }
+}
 
 class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published var discoveredDevices: [(peripheral: CBPeripheral, rssi: Int)] = []
     @Published var isBluetoothEnabled: Bool = false
+    @Published var currentTintLevel: Int = 0
+    @Published var currentMotorState: Int = 0
+    @Published var isConnected: Bool = false
+    @Published var connectionStatus: ConnectionStatus = .disconnected
+    
+    enum ConnectionStatus {
+        case disconnected
+        case connecting
+        case connected
+        case failed
+    }
+
+    
     private var centralManager: CBCentralManager!
     private let defaults = UserDefaults.standard
     private var isScanning = false
-    
+        
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
@@ -35,6 +55,20 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
 
     
     
+//    func startScanning() {
+//            guard centralManager.state == .poweredOn, !isScanning else {
+//                return
+//            }
+//            isScanning = true
+//            discoveredDevices.removeAll()
+//            centralManager.scanForPeripherals(withServices: nil, options: nil)
+//            print("Scanning started")
+//
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+//                self?.stopScanning()
+//            }
+//        }
+    
     func startScanning() {
             guard centralManager.state == .poweredOn, !isScanning else {
                 return
@@ -43,10 +77,11 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             discoveredDevices.removeAll()
             centralManager.scanForPeripherals(withServices: nil, options: nil)
             print("Scanning started")
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-                self?.stopScanning()
-            }
+            
+            // Optionally, set a timeout for the scanning
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+//                self?.stopScanning()
+//            }
         }
     
     func stopScanning() {
@@ -58,10 +93,29 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("Peripheral connected: \(peripheral.name ?? "Unknown")")
-        peripheral.delegate = self
-        peripheral.discoverServices([CBUUIDs.cService_UUID, CBUUIDs.sService_UUID])
-    }
+            print("Peripheral connected: \(peripheral.name ?? "Unknown")")
+            peripheral.delegate = self
+            peripheral.discoverServices([CBUUIDs.cService_UUID, CBUUIDs.sService_UUID])
+            DispatchQueue.main.async {
+                self.isConnected = true
+                self.connectionStatus = .connected
+            }
+        }
+
+        func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+            print("Peripheral disconnected")
+            DispatchQueue.main.async {
+                self.isConnected = false
+                self.connectionStatus = .disconnected
+            }
+        }
+
+        func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+            print("Failed to connect to \(peripheral.name ?? "Unknown"): \(error?.localizedDescription ?? "Unknown error")")
+            DispatchQueue.main.async {
+                self.connectionStatus = .failed
+            }
+        }
 
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
@@ -69,22 +123,21 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         if let name = peripheral.name, name.lowercased().contains("tynt") {
             print("Discovered Tynt device: \(name) with RSSI \(RSSI.intValue)")
 
-            // Check if the device is not already in the discoveredDevices array
-            if !discoveredDevices.contains(where: { $0.peripheral.identifier == peripheral.identifier }) {
+            // Check if the device is already in the discoveredDevices array
+            if let index = discoveredDevices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier }) {
+                // Update RSSI value
+                DispatchQueue.main.async {
+                    self.discoveredDevices[index].rssi = RSSI.intValue
+                }
+            } else {
+                // Add new device
                 DispatchQueue.main.async {
                     self.discoveredDevices.append((peripheral: peripheral, rssi: RSSI.intValue))
                 }
-            } else {
-                print("Duplicate device found: \(name)")
             }
         }
     }
 
-    
-    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        // Handle connection errors
-        print("Failed to connect to \(peripheral.name ?? "Unknown"): \(error?.localizedDescription ?? "")")
-    }
     
     func connectToDevice(_ peripheral: CBPeripheral) {
         BlePeripheral.connectedPeripheral = peripheral
@@ -99,15 +152,24 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
     }
     
+    func reconnectToDevice() {
+        if let lastConnectedUUIDString = defaults.string(forKey: "LastConnectedUUID"),
+           let lastConnectedUUID = UUID(uuidString: lastConnectedUUIDString),
+           let peripheral = centralManager.retrievePeripherals(withIdentifiers: [lastConnectedUUID]).first {
+            connectToDevice(peripheral)
+        }
+    }
+    
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }
         for service in services {
             peripheral.discoverCharacteristics(nil, for: service)
         }
     }
+    
         
         
-        func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
             guard let characteristics = service.characteristics else { return }
             for characteristic in characteristics {
                 // Assign characteristics to BlePeripheral properties
@@ -145,28 +207,31 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             }
         }
         
-        func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-            guard error == nil else {
-                print("Error reading characteristic: \(characteristic.uuid): \(error!.localizedDescription)")
-                return
-            }
-            
-            if let value = characteristic.value {
-                    print("Characteristic \(characteristic.uuid): \(value as NSData)")
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error = error {
+                    print("Error reading characteristic: \(error.localizedDescription)")
+                    return
                 }
-            
-            // Handle the characteristic value update
+
+                guard let data = characteristic.value else {
+                    print("No data received from characteristic \(characteristic.uuid)")
+                    return
+                }
+
+                print("Characteristic \(characteristic.uuid) updated value: \(data.hexEncodedString())")
+        
+        DispatchQueue.main.async {
             switch characteristic.uuid {
             case CBUUIDs.cService_Characteristic_uuid_StateOfTint:
-                if let data = characteristic.value {
-                    // Process and handle State of Tint data
-                }
+                self.currentTintLevel = self.dataToInt(data)
+                
+            case CBUUIDs.cService_Characteristic_uuid_MotorOpen:
+                self.currentMotorState = self.dataToInt(data)
                 
             case CBUUIDs.cService_Characteristic_uuid_GoalTint:
                 if let data = characteristic.value {
                     // Process and handle Goal Tint data
                 }
-                
             case CBUUIDs.cService_Characteristic_uuid_DriveState:
                 if let data = characteristic.value {
                     // Process and handle Drive State data
@@ -211,7 +276,16 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 print("Unhandled Characteristic UUID: \(characteristic.uuid)")
             }
         }
-        func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+    }
+    
+    private func dataToInt(_ data: Data) -> Int {
+            //converting the first byte to an integer
+            return Int(data.first ?? 0)
+        }
+
+    
+    
+    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
             if let error = error {
                 print("Error reading RSSI: \(error.localizedDescription)")
                 return
@@ -220,22 +294,60 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             // Handle the RSSI value
         }
         
-        func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-            if let error = error {
-                print("Error writing value to characteristic: \(error.localizedDescription)")
+    func writeValue(_ data: Data, for characteristic: CBCharacteristic, type: CBCharacteristicWriteType) {
+            guard let peripheral = BlePeripheral.connectedPeripheral else {
+                print("No connected peripheral to write to")
                 return
             }
-            
-            // Handle the confirmation of write
+            peripheral.writeValue(data, for: characteristic, type: type)
+        }
+
+        // CBPeripheralDelegate method to confirm that the data was written
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+            if let error = error {
+                print("Error writing characteristic \(characteristic.uuid): \(error.localizedDescription)")
+            } else {
+                print("Successfully wrote value to characteristic \(characteristic.uuid)")
+            }
         }
         
-        func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
             if let error = error {
                 print("Error updating notification state for characteristic: \(error.localizedDescription)")
                 return
             }
             
             // Handle the notification state update
+        }
+    func removeDevice(_ peripheral: CBPeripheral) {
+        DispatchQueue.main.async {
+            if let index = self.discoveredDevices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier }),
+               index < self.discoveredDevices.count {
+                self.discoveredDevices.remove(at: index)
+            }
+        }
+    }
+    
+    func writeTintLevel(_ level: Int) {
+            guard let tintChar = BlePeripheral.goalTintChar else {
+                print("Goal Tint Characteristic not found")
+                return
+            }
+            var levelByte = UInt8(level)
+            let data = Data(bytes: &levelByte, count: 1)
+            writeValue(data, for: tintChar, type: .withResponse)
+            print("Writing tint level: \(level)")
+        }
+
+        func writeMotorState(_ state: Int) {
+            guard let motorChar = BlePeripheral.goalMotorChar else {
+                print("Motor Characteristic not found")
+                return
+            }
+            var stateByte = UInt8(state)
+            let data = Data(bytes: &stateByte, count: 1)
+            writeValue(data, for: motorChar, type: .withResponse)
+            print("Writing motor state: \(state)")
         }
     }
 

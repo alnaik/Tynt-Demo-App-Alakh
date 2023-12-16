@@ -43,3 +43,5 @@ struct CBUUIDs{
     static let sService_Characteristic_uuid_AmbLight = CBUUID(string: sService_Characteristic_uuid_Ambient_Light) // (Property = Read/Notify)
     static let sService_Characteristic_uuid_Accel = CBUUID(string: sService_Characteristic_uuid_Accelerometer) // (Property = Read/Notify)
 }
+
+

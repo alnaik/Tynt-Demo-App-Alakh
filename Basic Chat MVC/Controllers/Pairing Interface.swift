@@ -16,56 +16,64 @@ struct PairingInterfaceView: View {
 
     var body: some View {
         NavigationView {
-            List(bluetoothManager.discoveredDevices.filter { !isDeviceAdded($0.peripheral) }, id: \.peripheral.identifier) { device in
-                       Button(action: {
-                           selectedDevice = device.peripheral // device.peripheral is a CBPeripheral
-                           showingRenameView = true
-                       }) {
-                           BluetoothDeviceRow(deviceName: device.peripheral.name ?? "Unknown", rssi: device.rssi)
-                       }
-                   }
+            List {
+                ForEach(bluetoothManager.discoveredDevices.filter { !isDeviceAdded($0.peripheral) }, id: \.peripheral.identifier) { device in
+                    Button(action: {
+                        selectedDevice = device.peripheral
+                        newDeviceName = device.peripheral.name ?? ""
+                        showingRenameView = true
+                    }) {
+                        BluetoothDeviceRow(deviceName: device.peripheral.name ?? "Unknown", rssi: device.rssi)
+                    }
+                }
             }
-            .sheet(isPresented: $showingRenameView) {
+        }
+        .sheet(isPresented: $showingRenameView) {
+            if selectedDevice != nil {
                 RenameDeviceView(device: $selectedDevice, newName: $newDeviceName, onSave: { device, name in
                     onDeviceSelected(device, name, true)
+                    bluetoothManager.removeDevice(device)
                     showingRenameView = false
                 })
             }
-            .navigationBarTitle("Add Window", displayMode: .inline)
-            .navigationBarItems(trailing: Button("Done") {
-                if let device = selectedDevice {
-                    onDeviceSelected(device, newDeviceName, true)
-                    newDeviceName = ""
-                    // Dismiss the sheet
-                    presentationMode.wrappedValue.dismiss()
-                }
-            })
-
-            if isScanning {
-                ProgressView("Scanning...")
-            }
-
-            Button(isScanning ? "Stop Scanning" : "Scan for Devices") {
-                isScanning.toggle()
-                if isScanning {
-                    bluetoothManager.startScanning()
-                } else {
-                    bluetoothManager.stopScanning()
-                }
-            }
-            .padding()
-            .background(Color("Color"))
-            .foregroundColor(.white)
-            .cornerRadius(10)
-            .font(.system(size: 25, weight: .semibold))
         }
-    private func isDeviceAdded(_ device: CBPeripheral) -> Bool {
+        .navigationBarTitle("Add Window", displayMode: .inline)
+        .navigationBarItems(trailing: Button("Done") {
+            if let device = selectedDevice {
+                onDeviceSelected(device, newDeviceName, true)
+                newDeviceName = ""
+                // Dismiss the sheet
+                presentationMode.wrappedValue.dismiss()
+            }
+        })
+
+        if isScanning {
+            ProgressView("Scanning...")
+        }
+
+        Button(isScanning ? "Stop Scanning" : "Scan for Devices") {
+            isScanning.toggle()
+            if isScanning {
+                bluetoothManager.startScanning()
+            } else {
+                bluetoothManager.stopScanning()
+            }
+        }
+        .padding()
+        .background(Color("Color"))
+        .foregroundColor(.white)
+        .cornerRadius(10)
+        .font(.system(size: 25, weight: .semibold))
+    }
+
+    func isDeviceAdded(_ device: CBPeripheral) -> Bool {
         let deviceName = device.name ?? "Unknown"
         return roomsData.rooms.contains { room in
             room.windows.contains(deviceName)
         }
     }
 }
+
 
 struct BluetoothDeviceRow: View {
     var deviceName: String
