@@ -1,16 +1,25 @@
 import SwiftUI
 import CoreBluetooth
+import Combine
 
 class CircularSliderViewModel: ObservableObject {
     @Published var currentTintLevel: Float
+    @Published var eta: String = ""
     private var timer: Timer?
+    private var countdownTimer: Timer?
     private var lastTintLevel: Float = 0.0
     var bluetoothManager: BluetoothManager
+    private var cancellable: AnyCancellable?
 
     init(currentTintLevel: Float, bluetoothManager: BluetoothManager) {
         self.currentTintLevel = currentTintLevel
         self.lastTintLevel = currentTintLevel
         self.bluetoothManager = bluetoothManager
+
+        cancellable = bluetoothManager.$currentTintLevel
+            .sink { [weak self] newLevel in
+                self?.currentTintLevel = Float(newLevel)
+            }
     }
 
     func change(location: CGPoint, radius: CGFloat) {
@@ -24,20 +33,59 @@ class CircularSliderViewModel: ObservableObject {
 
             // Reset and start the timer whenever the slider moves
             timer?.invalidate()
-                    timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-                        self?.registerTintLevel()
+            timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+                self?.registerTintLevel()
+            }
+        }
+    }
+    
+    private func registerTintLevel() {
+            if self.currentTintLevel != self.lastTintLevel {
+                let timeToChangeOnePercent: Float = 1.3
+                let etaInSeconds = abs(self.currentTintLevel - self.lastTintLevel) * timeToChangeOnePercent
+                
+                countdownTimer?.invalidate()
+                var remainingSeconds = Int(etaInSeconds)
+                countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+                    if remainingSeconds > 0 {
+                        self?.eta = "ETA: \(remainingSeconds) sec"
+                        remainingSeconds -= 1
+                    } else {
+                        self?.eta = "ETA: Tynted"
+                        timer.invalidate()
                     }
+                }
+                
+                self.lastTintLevel = self.currentTintLevel
+                bluetoothManager.writeTintLevel(Int(self.lastTintLevel)) { [weak self] success in
+                    if success {
+                        DispatchQueue.main.async {
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self?.eta = "ETA: Error updating"
+                            self?.countdownTimer?.invalidate()
+                        }
+                    }
+                }
+            }
         }
     }
 
-    private func registerTintLevel() {
-            if self.currentTintLevel != lastTintLevel {
-                lastTintLevel = currentTintLevel
-                bluetoothManager.writeTintLevel(Int(lastTintLevel))
-                print("Registered new tint level: \(lastTintLevel)")
-            }
-        }
-}
+
+//    private func registerTintLevel() {
+//        if self.currentTintLevel != self.lastTintLevel {
+//            self.lastTintLevel = self.currentTintLevel
+//            bluetoothManager.writeTintLevel(Int(self.lastTintLevel)) { success in
+//                if success {
+//                    print("Registered new tint level: \(self.lastTintLevel)")
+//
+//                } else {
+//                    print("Failed to register new tint level")
+//                }
+//            }
+//        }
+//    }
 
 
 struct CircularSlider: View {
@@ -63,10 +111,16 @@ struct CircularSlider: View {
                         }
                 )
 
-            Text("\(Int(viewModel.currentTintLevel))%")
-                .font(.largeTitle)
-                .foregroundColor(.white)
-                .bold()
+            VStack {
+                            Text("\(Int(viewModel.currentTintLevel))%")
+                                .font(.largeTitle)
+                                .foregroundColor(.white)
+                                .bold()
+
+                            Text(viewModel.eta) // Display the ETA
+                                .foregroundColor(.white)
+                                .font(.caption)
+                        }
         }
         .frame(width: radius * 2, height: radius * 2)
         .padding()
@@ -91,7 +145,6 @@ struct HomeInterfaceView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack {
 
-                    // Existing UI components
                     ZStack {
                         Image("TintImage")
                             .resizable()
@@ -122,18 +175,19 @@ struct HomeInterfaceView: View {
                 }
                 
                 if !bluetoothManager.isConnected {
-                                    Text("Disconnected. Trying to reconnect...")
-                                        .foregroundColor(.red)
-                                        .padding()
+                    Text(bluetoothManager.connectionStatus == .failed ? "Connection Failed. Try again." : "Disconnected. Trying to reconnect...")
+                        .foregroundColor(bluetoothManager.connectionStatus == .failed ? .red : .gray)
+                        .padding()
 
-                                    Button("Reconnect") {
-                                        bluetoothManager.reconnectToDevice()
-                                    }
-                                    .padding()
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(8)
-                                }
+                    Button("Reconnect") {
+                        bluetoothManager.reconnectToDevice()
+                    }
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                    .disabled(bluetoothManager.connectionStatus != .disconnected)
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -174,7 +228,15 @@ struct HomeInterfaceView: View {
     }
 
     private func writeMotorPosition(_ position: Int) {
-        bluetoothManager.writeMotorState(position)
+        bluetoothManager.writeMotorState(position) { success in
+            if success {
+                print("Successfully wrote motor position: \(position)")
+                // Optionally, update UI here to reflect the change
+            } else {
+                print("Failed to write motor position")
+                // Optionally, show an error message to the user
+            }
+        }
     }
     
     private func MotorControlButton(title: String, motorPosition: Int) -> some View {

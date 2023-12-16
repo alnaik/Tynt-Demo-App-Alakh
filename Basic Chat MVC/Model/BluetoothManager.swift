@@ -23,6 +23,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     @Published var isConnected: Bool = false
     @Published var connectionStatus: ConnectionStatus = .disconnected
     
+    
     enum ConnectionStatus {
         case disconnected
         case connecting
@@ -34,6 +35,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private var centralManager: CBCentralManager!
     private let defaults = UserDefaults.standard
     private var isScanning = false
+    private var pendingCompletion: ((Bool) -> Void)?
         
     override init() {
         super.init()
@@ -294,22 +296,27 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             // Handle the RSSI value
         }
         
-    func writeValue(_ data: Data, for characteristic: CBCharacteristic, type: CBCharacteristicWriteType) {
-            guard let peripheral = BlePeripheral.connectedPeripheral else {
-                print("No connected peripheral to write to")
-                return
-            }
-            peripheral.writeValue(data, for: characteristic, type: type)
+    func writeValue(_ data: Data, for characteristic: CBCharacteristic, type: CBCharacteristicWriteType, completion: ((Bool) -> Void)? = nil) {
+        guard let peripheral = BlePeripheral.connectedPeripheral else {
+            print("No connected peripheral to write to")
+            completion?(false)
+            return
         }
+        peripheral.writeValue(data, for: characteristic, type: type)
+        self.pendingCompletion = completion
+    }
 
         // CBPeripheralDelegate method to confirm that the data was written
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-            if let error = error {
-                print("Error writing characteristic \(characteristic.uuid): \(error.localizedDescription)")
-            } else {
-                print("Successfully wrote value to characteristic \(characteristic.uuid)")
-            }
+        if let error = error {
+            print("Error writing characteristic \(characteristic.uuid): \(error.localizedDescription)")
+            pendingCompletion?(false)
+        } else {
+            print("Successfully wrote value to characteristic \(characteristic.uuid)")
+            pendingCompletion?(true)
         }
+        pendingCompletion = nil
+    }
         
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
             if let error = error {
@@ -328,28 +335,38 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
     }
     
-    func writeTintLevel(_ level: Int) {
-            guard let tintChar = BlePeripheral.goalTintChar else {
-                print("Goal Tint Characteristic not found")
-                return
-            }
-            var levelByte = UInt8(level)
-            let data = Data(bytes: &levelByte, count: 1)
-            writeValue(data, for: tintChar, type: .withResponse)
-            print("Writing tint level: \(level)")
+    func writeTintLevel(_ level: Int, completion: ((Bool) -> Void)? = nil) {
+        guard let tintChar = BlePeripheral.goalTintChar else {
+            print("Goal Tint Characteristic not found")
+            completion?(false)
+            return
         }
-
-        func writeMotorState(_ state: Int) {
-            guard let motorChar = BlePeripheral.goalMotorChar else {
-                print("Motor Characteristic not found")
-                return
-            }
-            var stateByte = UInt8(state)
-            let data = Data(bytes: &stateByte, count: 1)
-            writeValue(data, for: motorChar, type: .withResponse)
-            print("Writing motor state: \(state)")
+        var levelByte = UInt8(level)
+        let data = Data(bytes: &levelByte, count: 1)
+        writeValue(data, for: tintChar, type: .withResponse) { success in
+            completion?(success)
         }
     }
+
+    func writeMotorState(_ state: Int, completion: ((Bool) -> Void)? = nil) {
+        guard let motorChar = BlePeripheral.goalMotorChar else {
+            print("Motor Characteristic not found")
+            completion?(false)
+            return
+        }
+        var stateByte = UInt8(state)
+        let data = Data(bytes: &stateByte, count: 1)
+        writeValue(data, for: motorChar, type: .withResponse) { success in
+            completion?(success)
+        }
+    }
+    
+    func retrievePeripheral(withUUID uuidString: String) -> CBPeripheral? {
+            guard let uuid = UUID(uuidString: uuidString) else { return nil }
+            let peripherals = centralManager.retrievePeripherals(withIdentifiers: [uuid])
+            return peripherals.first
+        }
+}
 
 
 

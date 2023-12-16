@@ -1,5 +1,4 @@
 // SwiftUI implemenatation of the pairing interface
-
 import SwiftUI
 import CoreBluetooth
 
@@ -7,7 +6,7 @@ struct PairingInterfaceView: View {
     @Binding var selectedRoom: Room
     @ObservedObject var roomsData: RoomsData
     @ObservedObject var bluetoothManager: BluetoothManager
-    var onDeviceSelected: (CBPeripheral, String, Bool) -> Void
+    var onDeviceSelected: (CBPeripheral, String, String, Bool) -> Void
     @State private var isScanning = false
     @State private var selectedDevice: CBPeripheral?
     @State private var newDeviceName: String = ""
@@ -16,64 +15,64 @@ struct PairingInterfaceView: View {
 
     var body: some View {
         NavigationView {
-            List {
-                ForEach(bluetoothManager.discoveredDevices.filter { !isDeviceAdded($0.peripheral) }, id: \.peripheral.identifier) { device in
-                    Button(action: {
-                        selectedDevice = device.peripheral
-                        newDeviceName = device.peripheral.name ?? ""
-                        showingRenameView = true
-                    }) {
-                        BluetoothDeviceRow(deviceName: device.peripheral.name ?? "Unknown", rssi: device.rssi)
+            VStack {
+                
+                Text("Add Window")
+                                    .font(.largeTitle)
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                
+                List {
+                    ForEach(bluetoothManager.discoveredDevices.filter { !isDeviceAdded($0.peripheral) }, id: \.peripheral.identifier) { device in
+                        Button(action: {
+                            selectedDevice = device.peripheral
+                            newDeviceName = device.peripheral.name ?? ""
+                            showingRenameView = true
+                        }) {
+                            BluetoothDeviceRow(deviceName: device.peripheral.name ?? "Unknown", rssi: device.rssi)
+                        }
                     }
                 }
+                .sheet(isPresented: $showingRenameView) {
+                    if selectedDevice != nil {
+                        RenameDeviceView(device: $selectedDevice, newName: $newDeviceName, onSave: { device, name in
+                            onDeviceSelected(device, name, device.identifier.uuidString, true)
+                            showingRenameView = false
+                        })
+                    }
+                }
+                
+                Button(isScanning ? "Stop Scanning" : "Scan for Devices") {
+                    isScanning.toggle()
+                    if isScanning {
+                        bluetoothManager.startScanning()
+                    } else {
+                        bluetoothManager.stopScanning()
+                    }
+                }
+                .padding()
+                .background(Color("Color"))
+                .foregroundColor(.white)
+                .cornerRadius(10)
+                .font(.system(size: 25, weight: .semibold))
             }
+            .navigationBarItems(trailing: Button("Done") {
+                if let device = selectedDevice {
+                    onDeviceSelected(device, newDeviceName, device.identifier.uuidString, true)
+                    newDeviceName = ""
+                    presentationMode.wrappedValue.dismiss()
+                }
+            })
         }
-        .sheet(isPresented: $showingRenameView) {
-            if selectedDevice != nil {
-                RenameDeviceView(device: $selectedDevice, newName: $newDeviceName, onSave: { device, name in
-                    onDeviceSelected(device, name, true)
-                    bluetoothManager.removeDevice(device)
-                    showingRenameView = false
-                })
-            }
-        }
-        .navigationBarTitle("Add Window", displayMode: .inline)
-        .navigationBarItems(trailing: Button("Done") {
-            if let device = selectedDevice {
-                onDeviceSelected(device, newDeviceName, true)
-                newDeviceName = ""
-                // Dismiss the sheet
-                presentationMode.wrappedValue.dismiss()
-            }
-        })
-
-        if isScanning {
-            ProgressView("Scanning...")
-        }
-
-        Button(isScanning ? "Stop Scanning" : "Scan for Devices") {
-            isScanning.toggle()
-            if isScanning {
-                bluetoothManager.startScanning()
-            } else {
-                bluetoothManager.stopScanning()
-            }
-        }
-        .padding()
-        .background(Color("Color"))
-        .foregroundColor(.white)
-        .cornerRadius(10)
-        .font(.system(size: 25, weight: .semibold))
     }
 
     func isDeviceAdded(_ device: CBPeripheral) -> Bool {
-        let deviceName = device.name ?? "Unknown"
+        let deviceUUID = device.identifier.uuidString
         return roomsData.rooms.contains { room in
-            room.windows.contains(deviceName)
+            room.windows.contains { $0.deviceUUID == deviceUUID }
         }
     }
 }
-
 
 struct BluetoothDeviceRow: View {
     var deviceName: String
@@ -112,6 +111,7 @@ struct RenameDeviceView: View {
         .padding()
     }
 }
+
 
 
 
