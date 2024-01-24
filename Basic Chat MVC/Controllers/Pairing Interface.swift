@@ -16,7 +16,7 @@ struct PairingInterfaceView: View {
     var body: some View {
         NavigationView {
             VStack {
-                
+                Spacer(minLength: 20)
                 Text("Add Window")
                                     .font(.largeTitle)
                                     .fontWeight(.semibold)
@@ -56,13 +56,13 @@ struct PairingInterfaceView: View {
                 .cornerRadius(10)
                 .font(.system(size: 25, weight: .semibold))
             }
-            .navigationBarItems(trailing: Button("Done") {
-                if let device = selectedDevice {
-                    onDeviceSelected(device, newDeviceName, device.identifier.uuidString, true)
-                    newDeviceName = ""
-                    presentationMode.wrappedValue.dismiss()
-                }
-            })
+//            .navigationBarItems(trailing: Button("Done") {
+//                if let device = selectedDevice {
+//                    onDeviceSelected(device, newDeviceName, device.identifier.uuidString, true)
+//                    newDeviceName = ""
+//                    presentationMode.wrappedValue.dismiss()
+//                }
+//            })
         }
     }
 

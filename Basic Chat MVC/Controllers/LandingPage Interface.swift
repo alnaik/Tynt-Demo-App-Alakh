@@ -20,40 +20,40 @@ struct LandingPageView: View {
     @State private var selectedWindowName: String?
 
     var body: some View {
-            NavigationView {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Image("Logo_Full")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(height: 50)
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            ForEach(roomsData.rooms.indices, id: \.self) { index in
-                                RoomButtonView(index: index)
-                            }
-                            AddRoomButtonView()
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    RoomWindowsView()
-
-                    if let selectedWindow = selectedWindowName, isNavigationActive {
-                        NavigationLink(destination: HomeInterfaceView(windowName: selectedWindow, bluetoothManager: bluetoothManager), isActive: $isNavigationActive) {
-                            EmptyView()
-                        }
-                        .hidden()
-                    }
+        NavigationView{
+            ScrollView(.vertical, showsIndicators: false){
+                HStack {
+                    Spacer()
+                    Image("Logo_Full")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 50)
                 }
-                .onAppear {
-                    bluetoothManager.reconnectToDevice()
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(roomsData.rooms.indices, id: \.self) { index in
+                            RoomButtonView(index: index)
+                        }
+                        AddRoomButtonView()
+                    }
+                    .padding(.horizontal)
+                }
+                
+                RoomWindowsView()
+                
+                if let selectedWindow = selectedWindowName, isNavigationActive {
+                    NavigationLink(destination: HomeInterfaceView(windowName: selectedWindow, bluetoothManager: bluetoothManager), isActive: $isNavigationActive) {
+                        EmptyView()
+                    }
+                    .hidden()
                 }
             }
+            .onAppear {
+                bluetoothManager.reconnectToDevice()
+            }
         }
+    }
 
     private func RoomButtonView(index: Int) -> some View {
         Button(action: {

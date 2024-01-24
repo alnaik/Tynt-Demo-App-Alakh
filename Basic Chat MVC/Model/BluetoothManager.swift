@@ -18,7 +18,12 @@ extension Data {
 class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published var discoveredDevices: [(peripheral: CBPeripheral, rssi: Int)] = []
     @Published var isBluetoothEnabled: Bool = false
-    @Published var currentTintLevel: Int = 0
+    @Published var currentTintLevel: Int = 0 {
+            didSet {
+                print("currentTintLevel updated to: \(currentTintLevel)")
+            }
+        }
+    @Published var goalTintLevel: Int = 0
     @Published var currentMotorState: Int = 0
     @Published var isConnected: Bool = false
     @Published var connectionStatus: ConnectionStatus = .disconnected
@@ -174,6 +179,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
             guard let characteristics = service.characteristics else { return }
             for characteristic in characteristics {
+                print("Discovered characteristic: \(characteristic.uuid)")
                 // Assign characteristics to BlePeripheral properties
                 switch characteristic.uuid {
                 case CBUUIDs.cService_Characteristic_uuid_StateOfTint:
@@ -231,9 +237,9 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 self.currentMotorState = self.dataToInt(data)
                 
             case CBUUIDs.cService_Characteristic_uuid_GoalTint:
-                if let data = characteristic.value {
-                    // Process and handle Goal Tint data
-                }
+                let goalLevel = self.dataToInt(data)
+                self.goalTintLevel = goalLevel
+                
             case CBUUIDs.cService_Characteristic_uuid_DriveState:
                 if let data = characteristic.value {
                     // Process and handle Drive State data
@@ -242,11 +248,6 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             case CBUUIDs.cService_Characteristic_uuid_AutoMode:
                 if let data = characteristic.value {
                     // Process and handle Auto Mode data
-                }
-                
-            case CBUUIDs.cService_Characteristic_uuid_MotorOpen:
-                if let data = characteristic.value {
-                    // Process and handle Motor Open data
                 }
                 
             case CBUUIDs.cService_Characteristic_uuid_GoalMotorOpen:
@@ -281,8 +282,9 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
     
     private func dataToInt(_ data: Data) -> Int {
-            //converting the first byte to an integer
-            return Int(data.first ?? 0)
+            let tintLevel = Int(data.first ?? 0)
+            print("Converted Tint Level from Data: \(tintLevel)")
+            return tintLevel
         }
 
     
@@ -343,9 +345,8 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
         var levelByte = UInt8(level)
         let data = Data(bytes: &levelByte, count: 1)
-        writeValue(data, for: tintChar, type: .withResponse) { success in
-            completion?(success)
-        }
+        print("Writing tint level: \(level) to characteristic: \(tintChar.uuid)")
+        writeValue(data, for: tintChar, type: .withResponse, completion: completion)
     }
 
     func writeMotorState(_ state: Int, completion: ((Bool) -> Void)? = nil) {
@@ -366,6 +367,8 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             let peripherals = centralManager.retrievePeripherals(withIdentifiers: [uuid])
             return peripherals.first
         }
+    
+    
 }
 
 

@@ -10,67 +10,95 @@ class CircularSliderViewModel: ObservableObject {
     private var lastTintLevel: Float = 0.0
     var bluetoothManager: BluetoothManager
     private var cancellable: AnyCancellable?
-
+//    private var startTime: Date?
+//    private var startTintLevel: Float?
+    
     init(currentTintLevel: Float, bluetoothManager: BluetoothManager) {
         self.currentTintLevel = currentTintLevel
         self.lastTintLevel = currentTintLevel
         self.bluetoothManager = bluetoothManager
-
+        
         cancellable = bluetoothManager.$currentTintLevel
             .sink { [weak self] newLevel in
                 self?.currentTintLevel = Float(newLevel)
             }
     }
-
+    
     func change(location: CGPoint, radius: CGFloat) {
         let vector = CGVector(dx: location.x, dy: location.y)
         let angle = atan2(vector.dy - radius, vector.dx - radius) + .pi / 2.0
         let fixedAngle = angle < 0.0 ? angle + 2.0 * .pi : angle
         let newValue = Float(fixedAngle / (2.0 * .pi) * 100)
-
+        
         if newValue >= 0 && newValue <= 100 {
             self.currentTintLevel = newValue
-
+            
             // Reset and start the timer whenever the slider moves
             timer?.invalidate()
             timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
                 self?.registerTintLevel()
             }
         }
+        
+//        startMonitoringTintChange()
     }
     
+//    private func startMonitoringTintChange() {
+//            self.startTintLevel = self.currentTintLevel
+//            self.startTime = Date()
+//            // Start a periodic timer to monitor changes
+//            timer?.invalidate()
+//            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+//                self?.calculateAndUpdateETA()
+//            }
+//        }
+//
+//        private func calculateAndUpdateETA() {
+//            guard let startLevel = startTintLevel, let startTime = startTime else { return }
+//            let timeElapsed = Date().timeIntervalSince(startTime)
+//            let changeInTintLevel = abs(self.currentTintLevel - startLevel)
+//
+//            if changeInTintLevel > 0 {
+//                let rate = timeElapsed / Double(changeInTintLevel)
+//                let totalChangeNeeded = abs(self.currentTintLevel - self.lastTintLevel)
+//                let estimatedTimeRemaining = rate * Double(totalChangeNeeded)
+//                DispatchQueue.main.async {
+//                    self.eta = "ETA: \(Int(estimatedTimeRemaining)) secs"
+//                }
+//            }
+//        }
+    
     private func registerTintLevel() {
-            if self.currentTintLevel != self.lastTintLevel {
-                let timeToChangeOnePercent: Float = 1.3
-                let etaInSeconds = abs(self.currentTintLevel - self.lastTintLevel) * timeToChangeOnePercent
-                
-                countdownTimer?.invalidate()
-                var remainingSeconds = Int(etaInSeconds)
-                countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
-                    if remainingSeconds > 0 {
-                        self?.eta = "ETA: \(remainingSeconds) sec"
-                        remainingSeconds -= 1
-                    } else {
-                        self?.eta = "ETA: Tynted"
-                        timer.invalidate()
-                    }
+        let goalTintLevel = self.currentTintLevel
+        if goalTintLevel != self.lastTintLevel {
+            let timeToChangeOnePercent: Float = 2
+            let etaInSeconds = abs(goalTintLevel - self.lastTintLevel) * timeToChangeOnePercent
+            var remainingSeconds = Int(etaInSeconds)
+            
+            countdownTimer?.invalidate()
+            countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+                if remainingSeconds > 0 {
+                    self?.eta = "ETA: \(remainingSeconds) secs"
+                    remainingSeconds -= 1
+                } else {
+                    self?.eta = "ETA: Tynted"
+                    timer.invalidate()
                 }
-                
-                self.lastTintLevel = self.currentTintLevel
-                bluetoothManager.writeTintLevel(Int(self.lastTintLevel)) { [weak self] success in
-                    if success {
-                        DispatchQueue.main.async {
-                        }
-                    } else {
-                        DispatchQueue.main.async {
-                            self?.eta = "ETA: Error updating"
-                            self?.countdownTimer?.invalidate()
-                        }
+            }
+            
+            self.lastTintLevel = goalTintLevel
+            bluetoothManager.writeTintLevel(Int(goalTintLevel)) { [weak self] success in
+                if !success {
+                    DispatchQueue.main.async {
+                        self?.eta = "ETA: Error updating"
+                        self?.countdownTimer?.invalidate()
                     }
                 }
             }
         }
     }
+}
+
 
 
 //    private func registerTintLevel() {
@@ -128,16 +156,22 @@ struct CircularSlider: View {
     }
 }
 
-
+//MARK: HomeInterfaceView
 struct HomeInterfaceView: View {
     var windowName: String
     @ObservedObject var bluetoothManager: BluetoothManager
     @StateObject private var sliderViewModel: CircularSliderViewModel
+    @State private var selectedMotorPosition: Int?
     
     init(windowName: String, bluetoothManager: BluetoothManager) {
         self.windowName = windowName
         self._bluetoothManager = ObservedObject(wrappedValue: bluetoothManager)
         self._sliderViewModel = StateObject(wrappedValue: CircularSliderViewModel(currentTintLevel: Float(bluetoothManager.currentTintLevel), bluetoothManager: bluetoothManager))
+        
+        // Read the saved position
+        if let savedPosition = UserDefaults.standard.object(forKey: "SelectedMotorPosition") as? Int {
+            self._selectedMotorPosition = State(initialValue: savedPosition)
+        }
     }
 
     var body: some View {
@@ -231,10 +265,11 @@ struct HomeInterfaceView: View {
         bluetoothManager.writeMotorState(position) { success in
             if success {
                 print("Successfully wrote motor position: \(position)")
-                // Optionally, update UI here to reflect the change
+                // Save to UserDefaults
+                UserDefaults.standard.set(position, forKey: "SelectedMotorPosition")
+                selectedMotorPosition = position
             } else {
                 print("Failed to write motor position")
-                // Optionally, show an error message to the user
             }
         }
     }
@@ -243,12 +278,14 @@ struct HomeInterfaceView: View {
         Button(title) {
             writeMotorPosition(motorPosition)
         }
-        .buttonStyle(MotorButtonStyle())
+        .buttonStyle(MotorButtonStyle(isSelected: selectedMotorPosition == motorPosition))
         .disabled(bluetoothManager.currentMotorState == motorPosition)
     }
 }
 
 struct MotorButtonStyle: ButtonStyle {
+    var isSelected: Bool
+
     func makeBody(configuration: Self.Configuration) -> some View {
         configuration.label
             .padding()
@@ -256,14 +293,12 @@ struct MotorButtonStyle: ButtonStyle {
             .foregroundColor(.white)
             .cornerRadius(10)
             .font(.system(size: 10, weight: .semibold))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? Color.black : Color.clear, lineWidth: 2)
+            )
     }
 }
-
-
-
-
-
-
 
 
 //
