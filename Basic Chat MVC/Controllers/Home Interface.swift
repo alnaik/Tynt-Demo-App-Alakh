@@ -12,8 +12,8 @@ class CircularSliderViewModel: ObservableObject {
     private var lastTintLevel: Float = 0.0
     var bluetoothManager: BluetoothManager
     private var cancellable: AnyCancellable?
-//    private var startTime: Date?
-//    private var startTintLevel: Float?
+    //    private var startTime: Date?
+    //    private var startTintLevel: Float?
     
     init(currentTintLevel: Float, bluetoothManager: BluetoothManager) {
         self.currentTintLevel = currentTintLevel
@@ -43,40 +43,73 @@ class CircularSliderViewModel: ObservableObject {
             }
         }
         
-//        startMonitoringTintChange()
+        //        startMonitoringTintChange()
     }
-
-
     
-//    private func startMonitoringTintChange() {
-//            self.startTintLevel = self.currentTintLevel
-//            self.startTime = Date()
-//            // Start a periodic timer to monitor changes
-//            timer?.invalidate()
-//            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-//                self?.calculateAndUpdateETA()
+    
+    
+    //    private func startMonitoringTintChange() {
+    //            self.startTintLevel = self.currentTintLevel
+    //            self.startTime = Date()
+    //            // Start a periodic timer to monitor changes
+    //            timer?.invalidate()
+    //            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+    //                self?.calculateAndUpdateETA()
+    //            }
+    //        }
+    //
+    //        private func calculateAndUpdateETA() {
+    //            guard let startLevel = startTintLevel, let startTime = startTime else { return }
+    //            let timeElapsed = Date().timeIntervalSince(startTime)
+    //            let changeInTintLevel = abs(self.currentTintLevel - startLevel)
+    //
+    //            if changeInTintLevel > 0 {
+    //                let rate = timeElapsed / Double(changeInTintLevel)
+    //                let totalChangeNeeded = abs(self.currentTintLevel - self.lastTintLevel)
+    //                let estimatedTimeRemaining = rate * Double(totalChangeNeeded)
+    //                DispatchQueue.main.async {
+    //                    self.eta = "ETA: \(Int(estimatedTimeRemaining)) secs"
+    //                }
+    //            }
+    //        }
+    
+//    private func registerTintLevel() {
+//        let goalTintLevel = self.currentTintLevel
+//        if goalTintLevel != self.lastTintLevel {
+//            let timeToChangeOnePercent: Float = 1.5
+//            let etaInSeconds = abs(goalTintLevel - self.lastTintLevel) * timeToChangeOnePercent
+//            var remainingSeconds = Int(etaInSeconds)
+//
+//            print("Goal Tint Level: \(goalTintLevel), Last Tint Level: \(self.lastTintLevel), ETA in Seconds: \(etaInSeconds)")
+//
+//            countdownTimer?.invalidate()
+//            countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+//                if remainingSeconds > 0 {
+//                    self?.eta = "ETA: \(remainingSeconds) secs"
+//                    remainingSeconds -= 1
+//                } else {
+//                    self?.eta = "ETA: Tynted"
+//                    timer.invalidate()
+//                }
 //            }
-//        }
 //
-//        private func calculateAndUpdateETA() {
-//            guard let startLevel = startTintLevel, let startTime = startTime else { return }
-//            let timeElapsed = Date().timeIntervalSince(startTime)
-//            let changeInTintLevel = abs(self.currentTintLevel - startLevel)
-//
-//            if changeInTintLevel > 0 {
-//                let rate = timeElapsed / Double(changeInTintLevel)
-//                let totalChangeNeeded = abs(self.currentTintLevel - self.lastTintLevel)
-//                let estimatedTimeRemaining = rate * Double(totalChangeNeeded)
-//                DispatchQueue.main.async {
-//                    self.eta = "ETA: \(Int(estimatedTimeRemaining)) secs"
+//            self.lastTintLevel = goalTintLevel
+//            bluetoothManager.writeTintLevel(Int(goalTintLevel)) { [weak self] success in
+//                if !success {
+//                    DispatchQueue.main.async {
+//                        self?.eta = "ETA: Error updating"
+//                        self?.countdownTimer?.invalidate()
+//                    }
 //                }
 //            }
 //        }
-    
+//    }
+//}
+
     private func registerTintLevel() {
         let goalTintLevel = self.currentTintLevel
         if goalTintLevel != self.lastTintLevel {
-            let timeToChangeOnePercent: Float = 2
+            let timeToChangeOnePercent: Float = 1.5
             let etaInSeconds = abs(goalTintLevel - self.lastTintLevel) * timeToChangeOnePercent
             var remainingSeconds = Int(etaInSeconds)
             
@@ -105,25 +138,11 @@ class CircularSliderViewModel: ObservableObject {
 }
 
 
-
-//    private func registerTintLevel() {
-//        if self.currentTintLevel != self.lastTintLevel {
-//            self.lastTintLevel = self.currentTintLevel
-//            bluetoothManager.writeTintLevel(Int(self.lastTintLevel)) { success in
-//                if success {
-//                    print("Registered new tint level: \(self.lastTintLevel)")
-//
-//                } else {
-//                    print("Failed to register new tint level")
-//                }
-//            }
-//        }
-//    }
-
 //MARK: Circular Slider
 struct CircularSlider: View {
     @ObservedObject var viewModel: CircularSliderViewModel
     let radius: CGFloat = 100
+    @State private var firstInteraction: Bool = false
 
     var body: some View {
         ZStack {
@@ -143,6 +162,7 @@ struct CircularSlider: View {
                             viewModel.change(location: value.location, radius: radius)
                         }
                 )
+            
 
             VStack {
                             Text("\(Int(viewModel.currentTintLevel))%")
@@ -295,7 +315,7 @@ struct MotorButtonStyle: ButtonStyle {
     func makeBody(configuration: Self.Configuration) -> some View {
         configuration.label
             .padding()
-            .background(Color("Color"))
+            .background(isSelected ? Color.blue : Color("Color"))
             .foregroundColor(.white)
             .cornerRadius(10)
             .font(.system(size: 10, weight: .semibold))

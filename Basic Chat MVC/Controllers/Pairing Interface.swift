@@ -18,23 +18,23 @@ struct PairingInterfaceView: View {
             VStack {
                 Spacer(minLength: 20)
                 Text("Add Window")
-                                    .font(.largeTitle)
-                                    .fontWeight(.semibold)
-                                    .frame(maxWidth: .infinity)
+                    .font(.largeTitle)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
                 
-                List {
-                    ForEach(bluetoothManager.discoveredDevices.filter { !isDeviceAdded($0.peripheral) }, id: \.peripheral.identifier) { device in
-                        Button(action: {
-                            selectedDevice = device.peripheral
-                            newDeviceName = device.peripheral.name ?? ""
-                            showingRenameView = true
-                        }) {
-                            BluetoothDeviceRow(deviceName: device.peripheral.name ?? "Unknown", rssi: device.rssi)
-                        }
+                List(bluetoothManager.discoveredDevices.filter { !isDeviceAdded($0.peripheral) }, id: \.peripheral.identifier) { device in
+                    Button(action: {
+                        selectedDevice = device.peripheral
+                        newDeviceName = device.peripheral.name ?? ""
+                        showingRenameView = true
+                    }) {
+                        BluetoothDeviceRow(deviceName: device.peripheral.name ?? "Unknown", rssi: device.rssi)
                     }
                 }
+                .onChange(of: bluetoothManager.discoveredDevicesUpdatedCount) { _ in
+                }
                 .sheet(isPresented: $showingRenameView) {
-                    if selectedDevice != nil {
+                    if let device = selectedDevice {
                         RenameDeviceView(device: $selectedDevice, newName: $newDeviceName, onSave: { device, name in
                             onDeviceSelected(device, name, device.identifier.uuidString, true)
                             showingRenameView = false
@@ -56,13 +56,6 @@ struct PairingInterfaceView: View {
                 .cornerRadius(10)
                 .font(.system(size: 25, weight: .semibold))
             }
-//            .navigationBarItems(trailing: Button("Done") {
-//                if let device = selectedDevice {
-//                    onDeviceSelected(device, newDeviceName, device.identifier.uuidString, true)
-//                    newDeviceName = ""
-//                    presentationMode.wrappedValue.dismiss()
-//                }
-//            })
         }
     }
 
@@ -73,6 +66,7 @@ struct PairingInterfaceView: View {
         }
     }
 }
+
 
 struct BluetoothDeviceRow: View {
     var deviceName: String

@@ -16,7 +16,12 @@ extension Data {
 }
 
 class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    @Published var discoveredDevices: [(peripheral: CBPeripheral, rssi: Int)] = []
+    @Published var discoveredDevices: [(peripheral: CBPeripheral, rssi: Int)] = [] {
+            didSet {
+                discoveredDevicesUpdatedCount += 1
+            }
+        }
+    @Published var discoveredDevicesUpdatedCount = 0
     @Published var isBluetoothEnabled: Bool = false
     @Published var currentTintLevel: Int = 0 {
             didSet {
@@ -283,7 +288,6 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     private func dataToInt(_ data: Data) -> Int {
             let tintLevel = Int(data.first ?? 0)
-            print("Converted Tint Level from Data: \(tintLevel)")
             return tintLevel
         }
 

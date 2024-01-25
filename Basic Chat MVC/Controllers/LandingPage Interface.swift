@@ -7,7 +7,7 @@
 
 import SwiftUI
 import CoreBluetooth
-
+//MARK: Landing Page View
 struct LandingPageView: View {
     @State private var selectedRoomIndex: Int? = 0
     @State private var showingAddRoomView = false
@@ -43,11 +43,10 @@ struct LandingPageView: View {
                 RoomWindowsView()
                 
                 if let selectedWindow = selectedWindowName, isNavigationActive {
-                    NavigationLink(destination: HomeInterfaceView(windowName: selectedWindow, bluetoothManager: bluetoothManager), isActive: $isNavigationActive) {
-                        EmptyView()
-                    }
-                    .hidden()
-                }
+                                NavigationLink(destination: HomeInterfaceView(windowName: selectedWindow, bluetoothManager: bluetoothManager), isActive: $isNavigationActive) {
+                                    EmptyView()
+                                }.hidden()
+                            }
             }
             .onAppear {
                 bluetoothManager.reconnectToDevice()
@@ -111,7 +110,13 @@ struct LandingPageView: View {
                     HStack(spacing: 10) {
                         ForEach(roomsData.rooms[selectedIndex].windows, id: \.self) { window in
                             WindowButtonView(window: window)
+                                .contextMenu {
+                                Button("Delete", role: .destructive) {
+                                    deleteWindow(named: window.name, inRoomAtIndex: selectedIndex)
+                                }
+                            }
                         }
+                        
                         AddWindowButtonView()
                     }
                     .padding(.horizontal)
@@ -124,6 +129,19 @@ struct LandingPageView: View {
             }
         }
     }
+    
+    private func deleteWindow(named windowName: String, inRoomAtIndex roomIndex: Int) {
+        guard roomsData.rooms.indices.contains(roomIndex) else { return }
+        if let windowIndex = roomsData.rooms[roomIndex].windows.firstIndex(where: { $0.name == windowName }) {
+            roomsData.rooms[roomIndex].windows.remove(at: windowIndex)
+            refreshDeviceList()
+        }
+    }
+    
+    private func refreshDeviceList() {
+        bluetoothManager.stopScanning()
+        bluetoothManager.startScanning()
+    }
 
     private func WindowButtonView(window: Room.Window) -> some View {
             Button(action: {
@@ -134,6 +152,7 @@ struct LandingPageView: View {
                 WindowView(bluetoothManager: bluetoothManager, windowName: window.name)
             }
         }
+
 
     private func AddWindowButtonView() -> some View {
         Button(action: {
@@ -302,9 +321,6 @@ struct WindowView: View {
                 .foregroundColor(.gray)
         }
         .frame(width: 200, height: 450)
-        .onTapGesture {
-            // Navigate to HomeInterfaceView
-        }
     }
 }
 
