@@ -226,7 +226,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                     return
                 }
 
-                print("Characteristic \(characteristic.uuid) updated value: \(data.hexEncodedString())")
+//                print("Characteristic \(characteristic.uuid) updated value: \(data.hexEncodedString())")
         
         DispatchQueue.main.async {
             switch characteristic.uuid {

@@ -2,6 +2,8 @@ import SwiftUI
 import CoreBluetooth
 import Combine
 
+//MARK: Circular Slider View Model
+//Commented out changes are to dynamically get ETA
 class CircularSliderViewModel: ObservableObject {
     @Published var currentTintLevel: Float
     @Published var eta: String = ""
@@ -33,6 +35,7 @@ class CircularSliderViewModel: ObservableObject {
         if newValue >= 0 && newValue <= 100 {
             self.currentTintLevel = newValue
             
+            
             // Reset and start the timer whenever the slider moves
             timer?.invalidate()
             timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
@@ -42,6 +45,8 @@ class CircularSliderViewModel: ObservableObject {
         
 //        startMonitoringTintChange()
     }
+
+
     
 //    private func startMonitoringTintChange() {
 //            self.startTintLevel = self.currentTintLevel
@@ -115,7 +120,7 @@ class CircularSliderViewModel: ObservableObject {
 //        }
 //    }
 
-
+//MARK: Circular Slider
 struct CircularSlider: View {
     @ObservedObject var viewModel: CircularSliderViewModel
     let radius: CGFloat = 100
@@ -155,6 +160,7 @@ struct CircularSlider: View {
         .contentShape(Circle())
     }
 }
+
 
 //MARK: HomeInterfaceView
 struct HomeInterfaceView: View {
