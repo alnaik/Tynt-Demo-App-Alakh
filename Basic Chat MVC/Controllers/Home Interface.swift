@@ -12,8 +12,7 @@ class CircularSliderViewModel: ObservableObject {
     private var lastTintLevel: Float = 0.0
     var bluetoothManager: BluetoothManager
     private var cancellable: AnyCancellable?
-    //    private var startTime: Date?
-    //    private var startTintLevel: Float?
+    private var lastUpdateTime: Date?
     
     init(currentTintLevel: Float, bluetoothManager: BluetoothManager) {
         self.currentTintLevel = currentTintLevel
@@ -25,9 +24,27 @@ class CircularSliderViewModel: ObservableObject {
             .sink { [weak self] newLevel in
                 print("Received new tint level from BluetoothManager: \(newLevel)")
                 self?.currentTintLevel = Float(newLevel)
+//                self?.calculateETA(newLevel: Float(newLevel))
             }
     }
     
+//    private func calculateETA(newLevel: Float) {
+//            let now = Date()
+//            if let lastUpdate = self.lastUpdateTime {
+//                let timeInterval = now.timeIntervalSince(lastUpdate)
+//                let levelChange = abs(newLevel - self.lastTintLevel)
+//                if levelChange > 0 {
+//                    let rateOfChange = timeInterval / Double(levelChange)
+//                    let remainingLevels = abs(Float(self.bluetoothManager.goalTintLevel) - newLevel)
+//                    let remainingTime = rateOfChange * Double(remainingLevels)
+//                    self.eta = "ETA: \(Int(remainingTime)) secs"
+//                }
+//            }
+//            self.lastUpdateTime = now
+//            self.lastTintLevel = newLevel
+//            self.currentTintLevel = newLevel
+//        }
+//    
     func change(location: CGPoint, radius: CGFloat) {
         let vector = CGVector(dx: location.x, dy: location.y)
         let angle = atan2(vector.dy - radius, vector.dx - radius) + .pi / 2.0
@@ -42,37 +59,8 @@ class CircularSliderViewModel: ObservableObject {
             }
         }
         
-        //        startMonitoringTintChange()
     }
     
-    
-    
-    //    private func startMonitoringTintChange() {
-    //            self.startTintLevel = self.currentTintLevel
-    //            self.startTime = Date()
-    //            // Start a periodic timer to monitor changes
-    //            timer?.invalidate()
-    //            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-    //                self?.calculateAndUpdateETA()
-    //            }
-    //        }
-    //
-    //        private func calculateAndUpdateETA() {
-    //            guard let startLevel = startTintLevel, let startTime = startTime else { return }
-    //            let timeElapsed = Date().timeIntervalSince(startTime)
-    //            let changeInTintLevel = abs(self.currentTintLevel - startLevel)
-    //
-    //            if changeInTintLevel > 0 {
-    //                let rate = timeElapsed / Double(changeInTintLevel)
-    //                let totalChangeNeeded = abs(self.currentTintLevel - self.lastTintLevel)
-    //                let estimatedTimeRemaining = rate * Double(totalChangeNeeded)
-    //                DispatchQueue.main.async {
-    //                    self.eta = "ETA: \(Int(estimatedTimeRemaining)) secs"
-    //                }
-    //            }
-    //        }
-    
-
     private func registerTintLevel() {
         let goalTintLevel = self.currentTintLevel
         if goalTintLevel != self.lastTintLevel {
