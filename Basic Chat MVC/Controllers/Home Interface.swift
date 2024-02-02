@@ -5,7 +5,7 @@ import Combine
 //MARK: Circular Slider View Model
 //Commented out changes are to dynamically get ETA
 class CircularSliderViewModel: ObservableObject {
-    @Published var currentTintLevel: Float
+    @Published var currentTintLevel: Float = 0.0
     @Published var eta: String = ""
     private var timer: Timer?
     private var countdownTimer: Timer?
@@ -21,7 +21,9 @@ class CircularSliderViewModel: ObservableObject {
         self.bluetoothManager = bluetoothManager
         
         cancellable = bluetoothManager.$currentTintLevel
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] newLevel in
+                print("Received new tint level from BluetoothManager: \(newLevel)")
                 self?.currentTintLevel = Float(newLevel)
             }
     }
@@ -34,9 +36,6 @@ class CircularSliderViewModel: ObservableObject {
         
         if newValue >= 0 && newValue <= 100 {
             self.currentTintLevel = newValue
-            
-            
-            // Reset and start the timer whenever the slider moves
             timer?.invalidate()
             timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
                 self?.registerTintLevel()
@@ -73,38 +72,6 @@ class CircularSliderViewModel: ObservableObject {
     //            }
     //        }
     
-//    private func registerTintLevel() {
-//        let goalTintLevel = self.currentTintLevel
-//        if goalTintLevel != self.lastTintLevel {
-//            let timeToChangeOnePercent: Float = 1.5
-//            let etaInSeconds = abs(goalTintLevel - self.lastTintLevel) * timeToChangeOnePercent
-//            var remainingSeconds = Int(etaInSeconds)
-//
-//            print("Goal Tint Level: \(goalTintLevel), Last Tint Level: \(self.lastTintLevel), ETA in Seconds: \(etaInSeconds)")
-//
-//            countdownTimer?.invalidate()
-//            countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
-//                if remainingSeconds > 0 {
-//                    self?.eta = "ETA: \(remainingSeconds) secs"
-//                    remainingSeconds -= 1
-//                } else {
-//                    self?.eta = "ETA: Tynted"
-//                    timer.invalidate()
-//                }
-//            }
-//
-//            self.lastTintLevel = goalTintLevel
-//            bluetoothManager.writeTintLevel(Int(goalTintLevel)) { [weak self] success in
-//                if !success {
-//                    DispatchQueue.main.async {
-//                        self?.eta = "ETA: Error updating"
-//                        self?.countdownTimer?.invalidate()
-//                    }
-//                }
-//            }
-//        }
-//    }
-//}
 
     private func registerTintLevel() {
         let goalTintLevel = self.currentTintLevel
@@ -121,9 +88,10 @@ class CircularSliderViewModel: ObservableObject {
                 } else {
                     self?.eta = "ETA: Tynted"
                     timer.invalidate()
+                        // Refresh tint level from the device to confirm the update
+                        self?.refreshTintLevel()
+                    }
                 }
-            }
-            
             self.lastTintLevel = goalTintLevel
             bluetoothManager.writeTintLevel(Int(goalTintLevel)) { [weak self] success in
                 if !success {
@@ -133,7 +101,13 @@ class CircularSliderViewModel: ObservableObject {
                     }
                 }
             }
+            
         }
+    }
+
+    
+    func refreshTintLevel() {
+        self.currentTintLevel = Float(bluetoothManager.currentTintLevel)
     }
 }
 
@@ -153,7 +127,7 @@ struct CircularSlider: View {
                 .stroke(Color("Color_Transparent"), lineWidth: 20)
 
             Circle()
-                .trim(from: 0.0, to: CGFloat(viewModel.currentTintLevel / 100))
+                .trim(from: 0.0, to: max(CGFloat(viewModel.currentTintLevel / 100), 0.01))
                 .stroke(Color("Color"), style: StrokeStyle(lineWidth: 20, lineCap: .round))
                 .rotationEffect(Angle(degrees: 270))
                 .gesture(
@@ -194,7 +168,7 @@ struct HomeInterfaceView: View {
         self._bluetoothManager = ObservedObject(wrappedValue: bluetoothManager)
         self._sliderViewModel = StateObject(wrappedValue: CircularSliderViewModel(currentTintLevel: Float(bluetoothManager.currentTintLevel), bluetoothManager: bluetoothManager))
         
-        // Read the saved position
+
         if let savedPosition = UserDefaults.standard.object(forKey: "SelectedMotorPosition") as? Int {
             self._selectedMotorPosition = State(initialValue: savedPosition)
         }
@@ -248,6 +222,16 @@ struct HomeInterfaceView: View {
                     .cornerRadius(8)
                     .disabled(bluetoothManager.connectionStatus != .disconnected)
                 }
+                
+                ScrollView(.horizontal, showsIndicators: false)  {
+                    HStack(spacing: 10) {
+                        SensorTileView(title: "Temperature", value: "72°F", color: Color.pastelPink)
+                        SensorTileView(title: "Humidity", value: "45%", color: Color.pastelBlue)
+                        SensorTileView(title: "Ambient Light", value: "300 Lux", color: Color.pastelGreen)
+                        // Adding more SensorTileViews
+                    }
+                    .padding(.top, 20)
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -263,8 +247,10 @@ struct HomeInterfaceView: View {
                 }
             }
             .onAppear {
+                print("HomeInterfaceView appeared, starting scanning for Bluetooth devices.")
                 bluetoothManager.startScanning()
                 if bluetoothManager.isConnected == false {
+                    print("BluetoothManager is not connected, attempting to reconnect.")
                             bluetoothManager.reconnectToDevice()
                         }
             }
@@ -323,6 +309,34 @@ struct MotorButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(isSelected ? Color.black : Color.clear, lineWidth: 2)
             )
+    }
+}
+
+extension Color {
+    static let pastelPink = Color(red: 1.0, green: 0.8, blue: 0.8)
+    static let pastelBlue = Color(red: 0.8, green: 0.8, blue: 1.0)
+    static let pastelGreen = Color(red: 0.8, green: 1.0, blue: 0.8)
+}
+
+struct SensorTileView: View {
+    var title: String
+    var value: String
+    var color: Color
+
+    var body: some View {
+        VStack {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.white)
+            Text(value)
+                .font(.title)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+        }
+        .padding()
+        .frame(width: 150, height: 100)
+        .background(color)
+        .cornerRadius(15)
     }
 }
 
