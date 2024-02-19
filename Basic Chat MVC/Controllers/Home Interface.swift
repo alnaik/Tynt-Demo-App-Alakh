@@ -213,9 +213,10 @@ struct HomeInterfaceView: View {
                 
                 ScrollView(.horizontal, showsIndicators: false)  {
                     HStack(spacing: 10) {
-                        SensorTileView(title: "Temperature", value: "72°F", color: Color.pastelPink)
-                        SensorTileView(title: "Humidity", value: "45%", color: Color.pastelBlue)
-                        SensorTileView(title: "Ambient Light", value: "300 Lux", color: Color.pastelGreen)
+                        SensorTileView(title: "Temperature", value: String(self.bluetoothManager.currentTemp) + "C", color: Color.pastelPink)
+                        SensorTileView(title: "Humidity", value: String(self.bluetoothManager.currentHumidity) + "%", color: Color.pastelBlue)
+                        SensorTileView(title: "Inside Ambient Light", value: String(self.bluetoothManager.currIntLight) + " Lux", color: Color.pastelGreen)
+                        SensorTileView(title: "Outside Ambient Light", value: String(self.bluetoothManager.currExtLight) + " Lux", color: Color.pastelGreen)
                         // Adding more SensorTileViews
                     }
                     .padding(.top, 20)

@@ -32,6 +32,11 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     @Published var currentMotorState: Int = 0
     @Published var isConnected: Bool = false
     @Published var connectionStatus: ConnectionStatus = .disconnected
+    @Published var currentTemp: Float = 0
+    @Published var currentHumidity: Int = 0
+    @Published var currIntLight: Float = 0
+    @Published var currExtLight: Float = 0
+    @Published var currExtTyntLight: Float = 0
     
     
     enum ConnectionStatus {
@@ -263,16 +268,22 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             case CBUUIDs.sService_Characteristic_uuid_Temp:
                 if let data = characteristic.value {
                     // Process and handle Temperature data
+                    self.currentTemp = self.parseTemp(data)
                 }
                 
             case CBUUIDs.sService_Characteristic_uuid_Humid:
                 if let data = characteristic.value {
                     // Process and handle Humidity data
+                    self.currentHumidity = self.dataToInt(data)
                 }
                 
             case CBUUIDs.sService_Characteristic_uuid_AmbLight:
                 if let data = characteristic.value {
                     // Process and handle Ambient Light data
+                    let temp = self.parseLight(data)
+                    self.currIntLight = temp.0
+                    self.currExtLight = temp.1
+                    self.currExtTyntLight = temp.2
                 }
                 
             case CBUUIDs.sService_Characteristic_uuid_Accel:
@@ -290,6 +301,82 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             let tintLevel = Int(data.first ?? 0)
             return tintLevel
         }
+    private func parseTemp(_ data: Data) -> Float {
+        //var value: Float = 0.0
+        let size = MemoryLayout<Float>.size
+        //print("Unedited Bytes: \(data.map { String(format: "%02X", $0) }.joined())")
+
+        guard data.count == 2 else {
+            // terrible error handling
+            //return nil
+            return 1
+        }
+
+        let stringValue = data.map { String(format: "%02X", $0) }.joined()
+        
+        
+        let chars = Array(stringValue)
+        
+        let b1 = String(chars[0]) + String(chars[1])
+        let b2 = String(chars[2]) + String(chars[3])
+        
+        let a = Int(b1, radix: 16)!
+        let b = Int(b2, radix: 16)!
+        
+        let v = a + (b<<8)
+        
+        if v > 32768 {
+            let r = 65536 - v
+            return (Float(r) / 10)*(-1)
+        }
+        else {
+            return Float(v) / 10
+        }
+
+    }
+    
+    private func parseLight(_ data: Data) -> (Float, Float, Float) {
+        let size = MemoryLayout<Float>.size
+        //print("Unedited Bytes: \(data.map { String(format: "%02X", $0) }.joined())")
+
+        guard data.count == 12 else {
+            // terrible error handling
+            //return nil
+            return (1,1,1)
+        }
+
+        let stringValue = data.map { String(format: "%02X", $0) }.joined()
+        print("Unedited Bytes: \(data.map { String(format: "%02X", $0) }.joined())")
+        
+        let intLightBytes = stringValue.prefix(8)
+        let extLightBytes = stringValue.dropFirst(8).prefix(8)
+        let extTintBytes = stringValue.suffix(8)
+        
+        let tempintLight = convertALCToInt(bytes: String(intLightBytes))
+        let tempextLight = convertALCToInt(bytes: String(extLightBytes))
+        let tempextTintedLight = convertALCToInt(bytes: String(extTintBytes))
+        return (tempintLight, tempextLight, tempextTintedLight)
+        
+    }
+    
+    func convertALCToInt(bytes: String) -> Float{
+    
+        let s = Array(bytes)
+    
+        let s1 = String(s[0]) + String(s[1])
+        let s2 = String(s[2]) + String(s[3])
+        let s3 = String(s[4]) + String(s[5])
+        let s4 = String(s[6]) + String(s[7])
+    
+        let a = Int(s1, radix: 16)!
+        let b = Int(s2, radix: 16)!
+        let c = Int(s3, radix: 16)!
+        let d = Int(s4, radix: 16)!
+    
+        let result = Float(a + (b<<8) + (c<<16) + (d<<24))
+    
+        return (result/100)
+    }
 
     
     
