@@ -311,7 +311,7 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     private func logData(_ data: Float, type: String) -> Void {
         //Interval in seconds
-        let interval = 5
+        let interval = 900
 //        if self.tempQueue.isEmpty {
 //            self.tempQueue.enqueue(data)
 //        }
