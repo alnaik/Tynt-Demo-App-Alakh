@@ -213,10 +213,10 @@ struct HomeInterfaceView: View {
                 
                 ScrollView(.horizontal, showsIndicators: false)  {
                     HStack(spacing: 10) {
-                        SensorTileView(title: "Temperature", value: String(self.bluetoothManager.currentTemp) + "C", color: Color.pastelPink)
-                        SensorTileView(title: "Humidity", value: String(self.bluetoothManager.currentHumidity) + "%", color: Color.pastelBlue)
-                        SensorTileView(title: "Inside Ambient Light", value: String(self.bluetoothManager.currIntLight) + " Lux", color: Color.pastelGreen)
-                        SensorTileView(title: "Outside Ambient Light", value: String(self.bluetoothManager.currExtLight) + " Lux", color: Color.pastelGreen)
+                        SensorTileView(title: "Temperature", value: String(self.bluetoothManager.currentTemp) + "C", color: Color.pastelPink, queue: self.bluetoothManager.tempQueue)
+                        SensorTileView(title: "Humidity", value: String(self.bluetoothManager.currentHumidity) + "%", color: Color.pastelBlue, queue: self.bluetoothManager.humidQueue)
+                        SensorTileView(title: "Inside Ambient Light", value: String(self.bluetoothManager.currIntLight) + " Lux", color: Color.pastelGreen, queue: self.bluetoothManager.intLightQueue)
+                        SensorTileView(title: "Outside Ambient Light", value: String(self.bluetoothManager.currExtLight) + " Lux", color: Color.pastelGreen, queue: self.bluetoothManager.extLightQueue)
                         // Adding more SensorTileViews
                     }
                     .padding(.top, 20)
@@ -308,10 +308,12 @@ extension Color {
 }
 
 struct SensorTileView: View {
+    @State var isExpanded = false
     var title: String
     var value: String
     var color: Color
-
+    var queue: Queue<Float>
+    
     var body: some View {
         VStack {
             Text(title)
@@ -321,11 +323,42 @@ struct SensorTileView: View {
                 .font(.title)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
+            if isExpanded {
+                HStack{
+                    Text("Just Now")
+                    Text(String(queue.peek()?.value ?? -1))
+                }
+                if let temp = queue.peek(at: 1) {
+                    HStack{
+                        Text("15 mins ago")
+                        Text(String(temp.value))
+                    }
+                }
+                if let temp = queue.peek(at: 2) {
+                    HStack{
+                        Text("30 mins ago")
+                        Text(String(temp.value))
+                    }
+                }
+                if let temp = queue.peek(at: 3) {
+                    HStack{
+                        Text("45 mins ago")
+                        Text(String(temp.value))
+                    }
+                }
+                
+            }
         }
         .padding()
-        .frame(width: 150, height: 100)
+        .frame(width: 150, height: isExpanded ? 300 : 100)
+        .transition(.move(edge: .bottom))
         .background(color)
         .cornerRadius(15)
+        .onTapGesture {
+            withAnimation {
+                isExpanded.toggle()
+            }
+        }
     }
 }
 

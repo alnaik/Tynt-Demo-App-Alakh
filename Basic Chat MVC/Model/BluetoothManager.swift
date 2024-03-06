@@ -37,6 +37,12 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     @Published var currIntLight: Float = 0
     @Published var currExtLight: Float = 0
     @Published var currExtTyntLight: Float = 0
+    @Published var tempQueue: Queue<Float> = Queue()
+    @Published var humidQueue: Queue<Float> = Queue()
+    @Published var intLightQueue: Queue<Float> = Queue()
+    @Published var extLightQueue: Queue<Float> = Queue()
+    @Published var extTyntLightQueue: Queue<Float> = Queue()
+
     
     
     enum ConnectionStatus {
@@ -268,13 +274,17 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             case CBUUIDs.sService_Characteristic_uuid_Temp:
                 if let data = characteristic.value {
                     // Process and handle Temperature data
-                    self.currentTemp = self.parseTemp(data)
+                    let temp = self.parseTemp(data)
+                    self.currentTemp = temp
+                    self.logData(temp, type: "temp")
                 }
                 
             case CBUUIDs.sService_Characteristic_uuid_Humid:
                 if let data = characteristic.value {
                     // Process and handle Humidity data
-                    self.currentHumidity = self.dataToInt(data)
+                    let temp = self.dataToInt(data)
+                    self.currentHumidity = temp
+                    self.logData(Float(temp), type: "humidity")
                 }
                 
             case CBUUIDs.sService_Characteristic_uuid_AmbLight:
@@ -284,6 +294,8 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                     self.currIntLight = temp.0
                     self.currExtLight = temp.1
                     self.currExtTyntLight = temp.2
+                    self.logData(temp.0, type: "intLight")
+                    self.logData(temp.1, type: "extLight")
                 }
                 
             case CBUUIDs.sService_Characteristic_uuid_Accel:
@@ -297,12 +309,70 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
     }
     
+    private func logData(_ data: Float, type: String) -> Void {
+        //Interval in seconds
+        let interval = 5
+//        if self.tempQueue.isEmpty {
+//            self.tempQueue.enqueue(data)
+//        }
+        
+        if type == "temp" {
+            if let temp = self.tempQueue.peek() {
+                if temp.time + Double(interval) < Date() {
+                    self.tempQueue.enqueue(data)
+                    //print("TIME ", temp.time, " TIME ADD ", temp.time + 60)
+                }
+            }
+            else{
+                self.tempQueue.enqueue(data)
+            }
+            //print(self.tempQueue.peek()?.value ?? 1234)
+            //print(self.tempQueue.elements)
+        }
+        
+        else if type == "humidity" {
+            if let temp = self.humidQueue.peek() {
+                if temp.time + Double(interval) < Date() {
+                    self.humidQueue.enqueue(data)
+                }
+            }
+            else{
+                self.humidQueue.enqueue(data)
+            }
+        }
+        
+        else if type == "intLight" {
+            if let temp = self.intLightQueue.peek() {
+                if temp.time + Double(interval) < Date() {
+                    self.intLightQueue.enqueue(data)
+                }
+            }
+            else{
+                self.intLightQueue.enqueue(data)
+            }
+        }
+        
+        else if type == "extLight" {
+            if let temp = self.extLightQueue.peek() {
+                if temp.time + Double(interval) < Date() {
+                    self.extLightQueue.enqueue(data)
+                }
+            }
+            else{
+                self.extLightQueue.enqueue(data)
+            }
+        }
+        else {
+            print("Logging type error: ", type)
+        }
+    }
+    
     private func dataToInt(_ data: Data) -> Int {
             let tintLevel = Int(data.first ?? 0)
             return tintLevel
         }
     private func parseTemp(_ data: Data) -> Float {
-        //var value: Float = 0.0
+        //var va {lue: Float = 0.0
         let size = MemoryLayout<Float>.size
         //print("Unedited Bytes: \(data.map { String(format: "%02X", $0) }.joined())")
 
@@ -340,13 +410,13 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         //print("Unedited Bytes: \(data.map { String(format: "%02X", $0) }.joined())")
 
         guard data.count == 12 else {
-            // terrible error handling
+            //TODO: fix error handling
             //return nil
             return (1,1,1)
         }
 
         let stringValue = data.map { String(format: "%02X", $0) }.joined()
-        print("Unedited Bytes: \(data.map { String(format: "%02X", $0) }.joined())")
+        //print("Unedited Bytes: \(data.map { String(format: "%02X", $0) }.joined())")
         
         let intLightBytes = stringValue.prefix(8)
         let extLightBytes = stringValue.dropFirst(8).prefix(8)
@@ -462,8 +532,60 @@ class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
 }
 
+struct ValueTimePair<T> {
+    let value: T
+    let time: Date
+    
+    init(value: T, time: Date = Date()) {
+        self.value = value
+        self.time = time
+    }
+}
 
-
+struct Queue<T> {
+    var elements: [ValueTimePair<T>] = []
+    private let maxSize = 10
+    
+    
+    // Enqueue adds an element at the end of the queue. If the queue is full,
+    // it removes the oldest element before adding the new one.
+    mutating func enqueue(_ value: T) {
+        let pair = ValueTimePair(value: value)
+        // Check if the queue has reached its maximum size
+        if elements.count >= maxSize {
+            // Remove the oldest element
+            _ = dequeue()
+        }
+        // Add the new element
+        elements.insert(pair, at: 0)
+    }
+    
+    // Dequeue removes and returns the first element of the queue, if it exists
+    mutating func dequeue() -> ValueTimePair<T>? {
+        guard !elements.isEmpty else { return nil }
+        return elements.removeLast()
+    }
+    
+    // Peek returns the first element without removing it, if it exists
+    func peek() -> ValueTimePair<T>? {
+        elements.first
+    }
+    
+    func peek(at index: Int) -> ValueTimePair<T>? {
+        guard index >= 0 && index < elements.count else { return nil }
+        return elements[index]
+    }
+    
+    // Checks if the queue is empty
+    var isEmpty: Bool {
+        elements.isEmpty
+    }
+    
+    // Returns the number of elements in the queue
+    var count: Int {
+        elements.count
+    }
+}
 
 
 
